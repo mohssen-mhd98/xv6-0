@@ -7,6 +7,7 @@
 #include "proc.h"
 #include "spinlock.h"
 
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -15,17 +16,27 @@ struct {
 static struct proc *initproc;
 
 int nextpid = 1;
+int q =0;
+int schedType = 0;
 extern void forkret(void);
 extern void trapret(void);
-
+struct proc* highestPriority(void);
 static void wakeup1(void *chan);
+int leastPriorityNum(void);
 
 void
 pinit(void)
 {
   initlock(&ptable.lock, "ptable");
 }
-
+int countDigit(int n)
+{ 
+    if (n == 0) 
+    	{
+        return 0;
+        } 
+    return 1 + countDigit(n / 10); 
+}
 // Must be called with interrupts disabled
 int
 cpuid() {
@@ -70,6 +81,7 @@ myproc(void) {
 // If found, change state to EMBRYO and initialize
 // state required to run in the kernel.
 // Otherwise return 0.
+/*
 static struct proc*
 allocproc(void)
 {
@@ -113,7 +125,65 @@ found:
   p->context->eip = (uint)forkret;
 
   return p;
+}*/
+static struct proc*
+allocproc(void)
+{
+  int min = leastPriorityNum();
+  char *sp;
+  struct proc *p;
+  acquire(&ptable.lock);
+       
+  //p = highestPriority();
+  //min = p-> calculatedPriority;
+  if (min == Max){
+  	min = 0;
+  }
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    if(p->state == UNUSED)
+      goto found;
+
+  release(&ptable.lock);
+  return 0;
+
+found:
+  p->state = EMBRYO;
+  p->pid = nextpid++;
+  p->priority = 5;//default priority fo new one
+  p->changeablePriority = min;//default changeablePriority priority fo new one
+  p->runningTime = 0;
+  p->sleepingTime = 0;
+  p->readyTime = 0;
+  p->creationTime = ticks;//initialize by current ticks value at trap.c
+  p->terminationTime = 0;
+  p->getTheFirstCpu = 0;
+  release(&ptable.lock);
+
+  // Allocate kernel stack.
+  if((p->kstack = kalloc()) == 0){
+    p->state = UNUSED;
+    return 0;
+  }
+  sp = p->kstack + KSTACKSIZE;
+
+  // Leave room for trap frame.
+  sp -= sizeof *p->tf;
+  p->tf = (struct trapframe*)sp;
+
+  // Set up new context to start executing at forkret,
+  // which returns to trapret.
+  sp -= 4;
+  *(uint*)sp = (uint)trapret;
+
+  sp -= sizeof *p->context;
+  p->context = (struct context*)sp;
+  memset(p->context, 0, sizeof *p->context);
+  p->context->eip = (uint)forkret;
+
+  return p;
 }
+
 
 //PAGEBREAK: 32
 // Set up first user process.
@@ -319,7 +389,9 @@ wait(void)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
-void
+
+//****************Default Algorithm for Scheduler**************************
+/*void
 scheduler(void)
 {
   struct proc *p;
@@ -353,8 +425,302 @@ scheduler(void)
     release(&ptable.lock);
 
   }
+}*/
+//****************Default Algorithm for Scheduler**************************
+
+//Correct Answer for (3.3)****##****
+/*void
+scheduler(void)
+{
+     struct proc *p;
+    struct proc *minp;
+    int min,f;
+  struct cpu *c = mycpu();
+  c->proc = 0;
+  
+  for(;;){
+
+     min = Max;
+     minp =myproc();
+     f=0;
+    // Enable interrupts on this processor.
+    sti();
+
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE)
+        continue;
+      if(p->state == RUNNABLE && p->changeablePriority < min){
+        min = p->changeablePriority;
+        f=1;
+        minp = p;
+      }
+    }
+
+      if (f==1){
+
+      minp->changeablePriority += minp->priority;
+      minp->getTheFirstCpu = 1;
+
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      c->proc = minp;
+      switchuvm(minp);
+      minp->state = RUNNING;
+
+      swtch(&(c->scheduler), minp->context);
+      switchkvm();
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+
+      }
+
+    release(&ptable.lock);
+
+  }
+}*/
+
+void
+scheduler2(void)
+{
+     struct proc *p;
+    struct proc *minp;
+    int min;
+  struct cpu *c = mycpu();
+  c->proc = 0;
+  
+  for(;;){
+
+     min = Max;
+     minp =myproc();
+    // Enable interrupts on this processor.
+    sti();
+
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE)
+        continue;
+      if(p->state == RUNNABLE && p->changeablePriority < min){
+        min = p->changeablePriority;
+
+        minp = p;
+      }
+    }
+
+      if (minp != myproc()){
+
+      minp->changeablePriority += minp->priority;
+      minp->getTheFirstCpu = 1;
+
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      c->proc = minp;
+      switchuvm(minp);
+      minp->state = RUNNING;
+
+      swtch(&(c->scheduler), minp->context);
+      switchkvm();
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+
+      }
+
+    release(&ptable.lock);
+
+  }
 }
 
+//Correct Answer for (3.3)****##****
+
+void
+scheduler(void)
+{
+  struct proc *p;
+  struct proc *minp;
+  struct cpu *c = mycpu();
+  struct proc *Q1[NPROC];
+  struct proc *Q2[NPROC];
+  int min,i,j,empty1,empty2;
+  c->proc = 0;
+  j = 0 ;
+  i = 0 ;
+  empty1 = 1;
+  empty2 = 1;
+  for(;;){
+  
+   q = (q+1)%3;
+    // Enable interrupts on this processor.
+    sti();
+  
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+  if(q == 1)
+  {
+
+     min = Max;
+     minp =myproc();
+
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE)
+        continue;
+      if(p->state == RUNNABLE && p->changeablePriority < min){
+        min = p->changeablePriority;
+        minp = p;
+        
+      }
+    }
+
+      if (minp != myproc()){
+
+      minp->changeablePriority += minp->priority;
+      minp->getTheFirstCpu = 1;
+
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      c->proc = minp;
+      switchuvm(minp);
+      minp->state = RUNNING;
+
+      swtch(&(c->scheduler), minp->context);
+      switchkvm();
+
+      if(minp->state != UNUSED){
+        Q1[i] = minp;
+        i++;
+        empty1 = 0;
+      }
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+
+      }
+  }
+
+   if (q == 2 && empty1 == 0)
+   {
+      empty1 = 1;
+        //cprintf("&&&&&ksjdkjkdjs&&&&&&&&");
+      for(p = Q1[0]; p < Q1[i+1]; p++){
+        //cprintf("\n&&&&&kkkkkkkkkkkkkkkkk&&&&&&&&");
+      if(p->state != RUNNABLE)
+        continue;
+
+      empty1 = 0;
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
+
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
+
+        if(p->state != UNUSED){
+        Q2[j] = p;
+        j++;
+        empty2 = 0;
+       }
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+    }
+
+    if(empty1 ==0) {
+      i = 0;
+    }
+  }
+
+   if (q == 0 && empty2 == 0)
+   {
+      empty2 = 1;
+
+      for(p = Q2[0]; p < Q2[j+1]; p++){
+      if(p->state != RUNNABLE)
+        continue;
+
+      empty2 = 0;
+
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
+
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+     }
+
+    if(empty2 ==1){
+     j = 0;
+     }
+
+   }
+
+    release(&ptable.lock);   
+  }
+}
+/*
+void
+scheduler(void)
+{
+  struct proc *p;
+  struct cpu *c = mycpu();
+  c->proc = 0;
+  
+  for(;;){
+    q = (q+1)%3;
+    if (q==1)
+	scheduler1();
+    else if(q==2)
+	scheduler2();
+    else
+	
+    // Enable interrupts on this processor.
+    sti();
+
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE)
+        continue;
+
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      c->proc = p;
+      p->changeablePriority += p->priority;
+      switchuvm(p);
+      p->state = RUNNING;
+
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+    }
+    release(&ptable.lock);
+
+  }
+}
+*/
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
 // intena because intena is a property of this
@@ -532,3 +898,105 @@ procdump(void)
     cprintf("\n");
   }
 }
+int
+getyear()
+{
+  return 2020;
+}
+/*char
+getChild(void)
+{
+  struct proc *currp = myproc();
+  struct proc *p;
+  char* child_id[20];
+  int id[20];
+  int i = 0;
+  int j;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(currp->pid == p->parent->pid)
+      id[i] = p->pid;
+    i++;
+  }
+  for(j=0;j<i;j++)
+    child_id[j] = id[j] + '0';
+
+  return child_id;
+}*/
+int sys_getChildren(void){
+    int id;
+    struct proc *p,*currp; 
+    currp = myproc();
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+    id = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->parent->pid == currp->pid){
+        id = (id*100) + p->pid;
+        cprintf("child id : %d****Parent id :%d\n",p->pid,currp->pid);
+      }
+    }
+
+    release(&ptable.lock);
+    return id;
+
+}
+
+int
+sys_changePolicy(void)
+{
+int n;
+argint(0, &n);
+if (n >= 0 && n < 3){
+	schedType = n;
+	return 1;
+	}
+else {
+	return -1;
+	}
+}
+
+int
+leastPriorityNum(void)
+{
+  struct proc *p;
+  int min = Max;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state == RUNNABLE && p->changeablePriority < min){
+        min = p->changeablePriority;
+        }
+} 
+ return min;
+}
+
+
+/*    if(countDigit(id)<2 && i==0){
+        a[k] = id + '0';
+        k = k+1;
+        i = 1;
+    }
+    if(countDigit(id) >1){
+    j = countDigit(id);
+    num = id;
+    while (num>0){
+    tmp[j-1] = num % 10;
+    c[j-1] = tmp[j-1] + '0';
+    num = num / 10;
+        //printf("\n%d////",num);
+    j--;
+   	}
+
+    for(j=0;j<countDigit(id);j++){
+      a[k] = c[j];
+      k++;
+    }
+        //a[k] = '0';
+        k = k + countDigit(id);
+    }else{
+        if(i!=0){
+          a[k] = '0';
+          a[k+1] = id + '0';
+          k = k+2;
+        }
+       // printf("**%c**\n",*(*commandArray+i));
+      }
+  }*/

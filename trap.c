@@ -13,6 +13,8 @@ struct gatedesc idt[256];
 extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
+uint time_slot;
+struct proc *p;
 
 void
 tvinit(void)
@@ -36,6 +38,7 @@ idtinit(void)
 void
 trap(struct trapframe *tf)
 {
+
   if(tf->trapno == T_SYSCALL){
     if(myproc()->killed)
       exit();
@@ -51,6 +54,7 @@ trap(struct trapframe *tf)
     if(cpuid() == 0){
       acquire(&tickslock);
       ticks++;
+      time_slot = (time_slot + 1)%(Quantum);
       wakeup(&ticks);
       release(&tickslock);
     }
@@ -102,11 +106,52 @@ trap(struct trapframe *tf)
 
   // Force process to give up CPU on clock tick.
   // If interrupts were on while locks held, would need to check nlock.
+
   if(myproc() && myproc()->state == RUNNING &&
-     tf->trapno == T_IRQ0+IRQ_TIMER)
-    yield();
+     tf->trapno == T_IRQ0+IRQ_TIMER && q !=0){
+       myproc()->runningTime++;
+       yield();
+       }
+
+  if(myproc() && myproc()->state == RUNNING &&
+     tf->trapno == T_IRQ0+IRQ_TIMER && q == 0){
+      myproc()->runningTime++;
+      if(myproc()->runningTime == Quantum){
+       cprintf("**After Time**%d----%d : \n",myproc()->runningTime,myproc()->pid);
+       //time_slot = 0;
+       yield();
+       myproc()->runningTime = 0;
+       }
+    }
+     
 
   // Check if the process has been killed since we yielded
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)
     exit();
 }
+
+     /*
+       if(myproc() && myproc()->state == RUNNING &&
+     tf->trapno == T_IRQ0+IRQ_TIMER){
+      cprintf("**befor Time**%d---%d : \n",time_slot,myproc()->pid);
+      myproc()->runningTime++;
+      if(time_slot+1== Quantum){
+       cprintf("**After Time**%d----%d : \n",time_slot,myproc()->pid);
+       //time_slot = 0;
+       yield();
+       //time_slot = 0;
+       }
+     }*/
+
+     /*
+       if(myproc() && myproc()->state == RUNNING &&
+     tf->trapno == T_IRQ0+IRQ_TIMER){
+      cprintf("**befor Time**%d---%d : \n",myproc()->runningTime,myproc()->pid);
+      myproc()->runningTime++;
+      if(myproc()->runningTime <= Quantum){
+       cprintf("**After Time**%d----%d : \n",myproc()->runningTime,myproc()->pid);
+       //time_slot = 0;
+       yield();
+       myproc()->runningTime = 0;
+       }
+     }*/
