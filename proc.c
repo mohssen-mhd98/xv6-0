@@ -158,6 +158,7 @@ found:
   p->creationTime = ticks;//initialize by current ticks value at trap.c
   p->terminationTime = 0;
   p->getTheFirstCpu = 0;
+  p->qLevel = 1;
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -483,7 +484,7 @@ scheduler(void)
 
   }
 }*/
-
+/*
 void
 scheduler2(void)
 {
@@ -597,6 +598,7 @@ scheduler(void)
         Q1[i] = minp;
         i++;
         empty1 = 0;
+        p->qLevel = 2;
       }
 
       // Process is done running for now.
@@ -675,7 +677,7 @@ scheduler(void)
 
     release(&ptable.lock);   
   }
-}
+}*/
 /*
 void
 scheduler(void)
@@ -721,6 +723,132 @@ scheduler(void)
   }
 }
 */
+
+void
+scheduler(void)
+{
+  struct proc *p;
+  struct proc *minp;
+  struct cpu *c = mycpu();
+  int min;
+  c->proc = 0;
+  q = 0;
+  for(;;){
+  
+    // Enable interrupts on this processor.
+    sti();
+  
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+       q = (q+1)%2;
+  if(q == 1)
+  {
+
+     min = Max;
+     minp =myproc();
+
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE && p->qLevel !=1)
+        continue;
+      if(p->state == RUNNABLE && p->changeablePriority < min){
+        min = p->changeablePriority;
+        minp = p;
+        
+      }
+    }
+
+      if (minp != myproc()){
+
+      minp->changeablePriority += minp->priority;
+      minp->getTheFirstCpu = 1;
+
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      c->proc = minp;
+      switchuvm(minp);
+      minp->state = RUNNING;
+
+      swtch(&(c->scheduler), minp->context);
+      switchkvm();
+
+      if(minp->state != UNUSED){
+        minp->qLevel = 2;
+      }
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+
+      }
+  }
+
+   if (q == 2)
+   {
+
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+
+      if(p->state != RUNNABLE)
+        continue;
+
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      if(p->qLevel == 2){
+      c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
+
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
+
+
+        if(p->state != UNUSED || p->state != ZOMBIE || p->killed != 0){
+
+          p->qLevel = 0;
+        }//else if(p->state ==ZOMBIE || p->killed==0) p->qLevel = 1;
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+      }
+    }
+  }
+
+   if (q == 0)
+   {
+
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE )
+        continue;
+
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      if(p->qLevel == 0){
+      c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
+
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+      }
+     }
+
+    if(p->state == UNUSED || p->state == ZOMBIE || p->killed == 0){
+      p->qLevel = 1;
+     }
+
+   }
+
+    release(&ptable.lock);   
+  }
+}
+
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
 // intena because intena is a property of this
@@ -967,6 +1095,8 @@ leastPriorityNum(void)
 } 
  return min;
 }
+
+
 
 
 /*    if(countDigit(id)<2 && i==0){

@@ -50,6 +50,7 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
   int priority;
+  int qLevel;
   int changeablePriority;      // Priority that changed at each of a time
   int getTheFirstCpu;         //if zero, process has Not got CPU Yet
   int creationTime;	       // Creation time of a process

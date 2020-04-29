@@ -13,7 +13,7 @@ struct gatedesc idt[256];
 extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
-uint time_slot;
+// time_slot;
 struct proc *p;
 
 void
@@ -54,7 +54,8 @@ trap(struct trapframe *tf)
     if(cpuid() == 0){
       acquire(&tickslock);
       ticks++;
-      time_slot = (time_slot + 1)%(Quantum);
+      //time_slot = (time_slot + 1)%(Quantum);
+      //waitForChiled();
       wakeup(&ticks);
       release(&tickslock);
     }
@@ -108,7 +109,7 @@ trap(struct trapframe *tf)
   // If interrupts were on while locks held, would need to check nlock.
 
   if(myproc() && myproc()->state == RUNNING &&
-     tf->trapno == T_IRQ0+IRQ_TIMER && q !=0){
+     tf->trapno == T_IRQ0+IRQ_TIMER && q!=0){
        myproc()->runningTime++;
        yield();
        }
