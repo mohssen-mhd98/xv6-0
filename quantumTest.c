@@ -2,7 +2,8 @@
 #include "stat.h"
 #include "user.h"
 
-struct timeVariables{
+//each time variables that a process could have
+struct processTimeFeatures{
   int creationTime;
   int terminationTime;
   int sleepingTime; 
@@ -10,40 +11,48 @@ struct timeVariables{
   int runningTime;
   };
   
-
-// Childrens ATT and AWT Time
+// ATT & AWT $ AverageCB Time of childrens
 struct averageTimeVariables{
-  float averageTurnAroundTime;
-  float averageCBT;
-  float averageWaitingTime;
+  int averageTurnAroundTime;
+  int averageCBT;
+  int averageWaitingTime;
   };
+
   int main(void)
   {
    struct averageTimeVariables atv;
-   struct timeVariables *tv = malloc(sizeof(struct timeVariables));
+   struct processTimeFeatures *ptf = malloc(sizeof(struct processTimeFeatures));
    int i,pid,j;
 
     atv.averageTurnAroundTime = 0;
     atv.averageCBT = 0;
     atv.averageWaitingTime = 0;
 
-    for(i=0;i<15;i++){
+   // Change the algorithm of scheduler to quantum algorithm
+   changePolicy(2);
+
+    for(i=0;i<10;i++){
         pid = fork();
         if(pid == 0){
-            for(j=0;j<200;j++);
+            for(j=0;j<500;j++)
+            printf(1, "%d : %d \n", getpid(), i);
             exit();
         }
     }
 
-    for(i=0;i<15;i++){
+    for(i=0;i<10;i++){
         
-        int pid = waitForChild(tv);
-        atv.averageTurnAroundTime += tv->terminationTime - tv->creationTime;
-        atv.averageWaitingTime += tv->sleepingTime + tv->readyTime;
-        atv.averageCBT += tv->runningTime;
+        pid = waitingForChild(ptf);
+        atv.averageTurnAroundTime += ptf->terminationTime - ptf->creationTime;
+        atv.averageWaitingTime += ptf->sleepingTime + ptf->readyTime;
+        atv.averageCBT += ptf->runningTime;
+    /*printf(1,"averageTurnAroundTime :%d\naverageWaitingTime :%d\naverageCBT :%d ID :%d\n"
+    ,atv.averageTurnAroundTime,atv.averageWaitingTime,atv.averageCBT,pid);*/
     }
     
-    printf(1,"averageTurnAroundTime :%.2f\naverageWaitingTime :%.2f\naverageCBT :%.2f"
-    ,atv.averageTurnAroundTime,atv.averageWaitingTime,atv.averageCBT);
+    printf(1,"averageTurnAroundTime :%d\naverageWaitingTime :%d\naverageCBT :%d\n%d\n"
+    ,atv.averageTurnAroundTime / 10, atv.averageWaitingTime / 10, atv.averageCBT / 10, pid);
+
+    exit();
    
   }

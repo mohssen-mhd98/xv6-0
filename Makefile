@@ -183,6 +183,9 @@ UPROGS=\
 	_zombie\
 	_tst1\
 	_childrenTest\
+	_quantumTest\
+	_priorityTest\
+
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
@@ -254,6 +257,8 @@ EXTRA=\
 	ln.c ls.c mkdir.c rm.c stressfs.c usertests.c wc.c zombie.c\
 	tst1.c\
 	childrenTest.c\
+	quantumTest.c\
+	priorityTest.c\
 	printf.c umalloc.c\
 	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\
 	.gdbinit.tmpl gdbutil\

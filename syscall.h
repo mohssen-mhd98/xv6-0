@@ -23,3 +23,5 @@
 #define SYS_getyear 22
 #define SYS_getChildren 23
 #define SYS_changePolicy 24
+#define SYS_waitingForChild 25
+#define SYS_setPriority 26

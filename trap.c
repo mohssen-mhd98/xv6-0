@@ -13,7 +13,7 @@ struct gatedesc idt[256];
 extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
-// time_slot;
+//uint time_slot;
 struct proc *p;
 
 void
@@ -55,8 +55,8 @@ trap(struct trapframe *tf)
       acquire(&tickslock);
       ticks++;
       //time_slot = (time_slot + 1)%(Quantum);
-      //waitForChiled();
       wakeup(&ticks);
+      waitForChild();
       release(&tickslock);
     }
     lapiceoi();
@@ -110,18 +110,17 @@ trap(struct trapframe *tf)
 
   if(myproc() && myproc()->state == RUNNING &&
      tf->trapno == T_IRQ0+IRQ_TIMER && q!=0){
-       myproc()->runningTime++;
+       //cprintf("\n\n\n####********hhhhhh***********####\n\n");
        yield();
        }
-
-  if(myproc() && myproc()->state == RUNNING &&
+       
+  else if(myproc() && myproc()->state == RUNNING &&
      tf->trapno == T_IRQ0+IRQ_TIMER && q == 0){
-      myproc()->runningTime++;
-      if(myproc()->runningTime == Quantum){
-       cprintf("**After Time**%d----%d : \n",myproc()->runningTime,myproc()->pid);
+      if(ticks % Quantum == 0){
+       //cprintf("**After Time**%d----%d : \n",myproc()->quantumTime,myproc()->pid);
        //time_slot = 0;
+       //cprintf("\n##sleepingTime Time##%d----%d : \n",myproc()->sleepingTime,myproc()->pid);
        yield();
-       myproc()->runningTime = 0;
        }
     }
      

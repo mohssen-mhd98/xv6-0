@@ -52,7 +52,7 @@ struct proc {
   int priority;
   int qLevel;
   int changeablePriority;      // Priority that changed at each of a time
-  int getTheFirstCpu;         //if zero, process has Not got CPU Yet
+  int getFirstCpu;         //if zero, process has Not got CPU Yet
   int creationTime;	       // Creation time of a process
   int terminationTime;         // Termination time of a process
   int sleepingTime;            // Amount of time the process is sleeping
@@ -60,6 +60,14 @@ struct proc {
   int runningTime;             // CPU Burst Time
  
 };
+
+struct processTimeFeatures{
+  int creationTime;
+  int terminationTime;
+  int sleepingTime; 
+  int readyTime; 
+  int runningTime;
+  };
 
 // Process memory is laid out contiguously, low addresses first:
 //   text

@@ -16,7 +16,7 @@ struct {
 static struct proc *initproc;
 
 int nextpid = 1;
-int q =0;
+int q = 1;
 int schedType = 0;
 extern void forkret(void);
 extern void trapret(void);
@@ -139,7 +139,7 @@ allocproc(void)
   if (min == Max){
   	min = 0;
   }
-
+  //min = 1;
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == UNUSED)
       goto found;
@@ -150,14 +150,17 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-  p->priority = 5;//default priority fo new one
-  p->changeablePriority = min;//default changeablePriority priority fo new one
+  p->priority = 5;//default for new processes
+  p->changeablePriority = min;//default for new processes
+  /*pushcli();
+  p->creationTime = mycpu()->time_slot;
+  popcli();*/
+  p->creationTime = ticks;//marking creation time by the current value of ticks.
   p->runningTime = 0;
+  p->getFirstCpu = 0;//hasn't acquired the CPU yet.
   p->sleepingTime = 0;
   p->readyTime = 0;
-  p->creationTime = ticks;//initialize by current ticks value at trap.c
   p->terminationTime = 0;
-  p->getTheFirstCpu = 0;
   p->qLevel = 1;
   release(&ptable.lock);
 
@@ -412,6 +415,7 @@ scheduler(void)
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
+      p->getFirstCpu = 1;
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
@@ -427,6 +431,38 @@ scheduler(void)
 
   }
 }*/
+/*
+void
+scheduler1(struct cpu *c)
+{
+  struct proc *p;
+
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE)
+        continue;
+
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      p->getFirstCpu = 1;
+      c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
+
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+    }
+    release(&ptable.lock);
+
+  
+}
+*/
 //****************Default Algorithm for Scheduler**************************
 
 //Correct Answer for (3.3)****##****
@@ -462,7 +498,7 @@ scheduler(void)
       if (f==1){
 
       minp->changeablePriority += minp->priority;
-      minp->getTheFirstCpu = 1;
+      minp->getFirstCpu = 1;
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -484,20 +520,20 @@ scheduler(void)
 
   }
 }*/
-/*
-void
-scheduler2(void)
+
+/*void
+scheduler(void)
 {
-     struct proc *p;
-    struct proc *minp;
-    int min;
+  struct proc *p;
+  struct proc *minp;
+  int min;
   struct cpu *c = mycpu();
   c->proc = 0;
   
   for(;;){
 
      min = Max;
-     minp =myproc();
+     minp =myproc(); //Minimum priority of processes
     // Enable interrupts on this processor.
     sti();
 
@@ -516,7 +552,7 @@ scheduler2(void)
       if (minp != myproc()){
 
       minp->changeablePriority += minp->priority;
-      minp->getTheFirstCpu = 1;
+      minp->getFirstCpu = 1;
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -537,10 +573,60 @@ scheduler2(void)
     release(&ptable.lock);
 
   }
-}
+}*/
+
+/*
+void
+scheduler3(struct cpu *c)
+{
+  struct proc *p;
+  struct proc *minp;
+  int min;
+  //struct cpu *c = mycpu();
+  //c->proc = 0;
+
+     min = Max;
+     minp =myproc(); //Minimum priority of processes
+
+
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE)
+        continue;
+      if(p->state == RUNNABLE && p->changeablePriority < min){
+        min = p->changeablePriority;
+
+        minp = p;
+      }
+    }
+
+      if (minp != myproc()){
+
+      minp->changeablePriority += minp->priority;
+      minp->getFirstCpu = 1;
+
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      c->proc = minp;
+      switchuvm(minp);
+      minp->state = RUNNING;
+
+      swtch(&(c->scheduler), minp->context);
+      switchkvm();
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+
+      }
+
+    release(&ptable.lock);
+}*/
 
 //Correct Answer for (3.3)****##****
-
+/*
 void
 scheduler(void)
 {
@@ -582,7 +668,7 @@ scheduler(void)
       if (minp != myproc()){
 
       minp->changeablePriority += minp->priority;
-      minp->getTheFirstCpu = 1;
+      minp->getFirstCpu = 1;
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -678,24 +764,29 @@ scheduler(void)
     release(&ptable.lock);   
   }
 }*/
-/*
-void
+//************************Policy Scheduler*************************
+/*void
 scheduler(void)
 {
-  struct proc *p;
-  struct cpu *c = mycpu();
-  c->proc = 0;
+    struct cpu *c = mycpu();
+    c->proc = 0;
   
   for(;;){
-    q = (q+1)%3;
-    if (q==1)
-	scheduler1();
-    else if(q==2)
-	scheduler2();
-    else
-	
+    //q = (q+1)%3;
+
     // Enable interrupts on this processor.
     sti();
+    if (schedType == 0)
+	  scheduler1(c);
+    else if(schedType == 1){
+      scheduler1(c);
+      q = 0;
+    }else if(schedType == 2)
+    scheduler3(c);
+
+    else{
+
+    struct proc *p;
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
@@ -719,11 +810,13 @@ scheduler(void)
       c->proc = 0;
     }
     release(&ptable.lock);
-
+    }
   }
-}
-*/
+}*/
+//************************Policy Scheduler*************************
 
+
+//Queue Algorithm
 void
 scheduler(void)
 {
@@ -740,7 +833,7 @@ scheduler(void)
   
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-       q = (q+1)%2;
+    q = (q+1)%3;
   if(q == 1)
   {
 
@@ -760,7 +853,7 @@ scheduler(void)
       if (minp != myproc()){
 
       minp->changeablePriority += minp->priority;
-      minp->getTheFirstCpu = 1;
+      minp->getFirstCpu = 1;
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -772,7 +865,7 @@ scheduler(void)
       swtch(&(c->scheduler), minp->context);
       switchkvm();
 
-      if(minp->state != UNUSED){
+      if(minp->state != UNUSED || minp->state != ZOMBIE || minp->killed == 0){
         minp->qLevel = 2;
       }
 
@@ -803,10 +896,14 @@ scheduler(void)
       switchkvm();
 
 
-        if(p->state != UNUSED || p->state != ZOMBIE || p->killed != 0){
+        if(p->state != UNUSED || p->state != ZOMBIE || p->killed == 0){
 
           p->qLevel = 0;
-        }//else if(p->state ==ZOMBIE || p->killed==0) p->qLevel = 1;
+        }else if(p->state ==ZOMBIE || p->killed!=0){
+          p->qLevel = p->parent->qLevel;
+          wakeup1(initproc);
+
+        }
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
@@ -839,8 +936,9 @@ scheduler(void)
       }
      }
 
-    if(p->state == UNUSED || p->state == ZOMBIE || p->killed == 0){
-      p->qLevel = 1;
+    if(p->state == ZOMBIE || p->killed!=0){
+      p->qLevel = p->parent->qLevel;
+      wakeup1(initproc);
      }
 
    }
@@ -883,6 +981,7 @@ yield(void)
   myproc()->state = RUNNABLE;
   sched();
   release(&ptable.lock);
+  
 }
 
 // A fork child's very first scheduling by scheduler()
@@ -1096,8 +1195,100 @@ leastPriorityNum(void)
  return min;
 }
 
+//updating time variables based on the process state
+void
+waitForChild(void){
+  //q = 0;
+struct proc *p;
+acquire(&ptable.lock);
+for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+	if(p->state == RUNNING){
+		p->runningTime+=1;
+	}
+	else if(p->state == SLEEPING){
+		p->sleepingTime+=1;
+	}
+	else if(p->state == RUNNABLE && p->getFirstCpu){
+		p->readyTime +=1;
+		}
+	else if(p->state == EMBRYO){
+		p->creationTime += 1;
 
+	}
+	}
+release(&ptable.lock);
 
+}
+
+int
+waitingForChild(void){
+  
+  struct processTimeFeatures *t;
+  argptr(0, (void*)&t, sizeof(*t));
+  struct proc *p;
+  int havekids, pid=0;
+  struct proc *curproc = myproc();
+  
+  acquire(&ptable.lock);
+  for(;;){
+    // Scan through table looking for exited children.
+    havekids = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->parent != curproc)
+        continue;
+      havekids = 1;
+
+      if(p->state == ZOMBIE){
+        // Found one.
+        pid = p->pid;
+        kfree(p->kstack);
+        p->kstack = 0;
+        freevm(p->pgdir);
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        p->state = UNUSED;
+        t->creationTime = p->creationTime;
+      	t->terminationTime = p->creationTime + p->sleepingTime + p->readyTime + p->runningTime;
+      	t->sleepingTime = p->sleepingTime;
+      	t->readyTime = p->readyTime;
+      	t->runningTime = p->runningTime;
+        //cprintf("\ncreationTime :%d***terminationTime :%d***runningTime :%d***ID : %d\nreadyTime : %d***sleepingTime : %d**"
+                //,t->creationTime,t->terminationTime,t->runningTime,pid,t->readyTime,t->sleepingTime);
+        release(&ptable.lock);
+        return pid;
+      }
+      //cprintf("running Time : %d-----ID : %d\n",time->runningTime,pid);
+    }
+
+    // No point waiting if we don't have any children.
+    if(havekids == 0 || curproc->killed !=0){
+      t->creationTime = 0;
+      t->terminationTime = 0;
+      t->sleepingTime = 0;
+      t->readyTime = 0;
+      t->runningTime = 0;
+      release(&ptable.lock);
+      return -1;
+    }
+
+    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    sleep(curproc, &ptable.lock);  //DOC: wait-sleep
+  }
+}
+
+//set new priority for a given process
+int
+sys_setPriority(void)
+{
+int new_priority;
+argint(0, &new_priority);
+if(new_priority < 1 || new_priority > 5)
+  return -1;
+myproc()->priority = new_priority;
+return 1;
+}
 
 /*    if(countDigit(id)<2 && i==0){
         a[k] = id + '0';

@@ -10,6 +10,7 @@ struct sleeplock;
 struct stat;
 struct superblock;
 
+
 // bio.c
 void            binit(void);
 struct buf*     bread(uint, uint);
@@ -121,6 +122,8 @@ int             wait(void);
 void            wakeup(void*);
 void            yield(void);
 int             getyear(void);
+void            waitForChild(void);
+int             waitingForChild(void);
 extern int      q;
 
 
