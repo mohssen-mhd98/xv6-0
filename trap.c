@@ -109,13 +109,13 @@ trap(struct trapframe *tf)
   // If interrupts were on while locks held, would need to check nlock.
 
   if(myproc() && myproc()->state == RUNNING &&
-     tf->trapno == T_IRQ0+IRQ_TIMER && q!=0){
+     tf->trapno == T_IRQ0+IRQ_TIMER && q!=3){
        //cprintf("\n\n\n####********hhhhhh***********####\n\n");
        yield();
        }
        
   else if(myproc() && myproc()->state == RUNNING &&
-     tf->trapno == T_IRQ0+IRQ_TIMER && q == 0){
+     tf->trapno == T_IRQ0+IRQ_TIMER && q == 3){
       if(ticks % Quantum == 0){
        //cprintf("**After Time**%d----%d : \n",myproc()->quantumTime,myproc()->pid);
        //time_slot = 0;

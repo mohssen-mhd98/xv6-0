@@ -9,6 +9,7 @@ struct processTimeFeatures{
   int sleepingTime; 
   int readyTime; 
   int runningTime;
+  
   };
   
 // ATT & AWT $ AverageCB Time of childrens
@@ -29,7 +30,7 @@ struct averageTimeVariables{
     atv.averageWaitingTime = 0;
 
    // Change the algorithm of scheduler to quantum algorithm
-   changePolicy(2);
+   changePolicy(1);
 
     for(i=0;i<10;i++){
         pid = fork();

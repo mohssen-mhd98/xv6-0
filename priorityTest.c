@@ -10,7 +10,7 @@ struct processTimeFeatures{
   int sleepingTime; 
   int readyTime; 
   int runningTime;
-  int priority;
+  
   };
   
 // Childrens Attributes of a process  

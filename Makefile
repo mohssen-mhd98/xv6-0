@@ -185,6 +185,7 @@ UPROGS=\
 	_childrenTest\
 	_quantumTest\
 	_priorityTest\
+	_multiLevelqTest\
 
 
 fs.img: mkfs README $(UPROGS)
@@ -259,6 +260,7 @@ EXTRA=\
 	childrenTest.c\
 	quantumTest.c\
 	priorityTest.c\
+	multiLevelqTest.c\
 	printf.c umalloc.c\
 	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\
 	.gdbinit.tmpl gdbutil\

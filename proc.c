@@ -16,13 +16,15 @@ struct {
 static struct proc *initproc;
 
 int nextpid = 1;
-int q = 1;
+int q = 0;
 int schedType = 0;
+int quantumQ_size, defaultq_size;
 extern void forkret(void);
 extern void trapret(void);
 struct proc* highestPriority(void);
 static void wakeup1(void *chan);
 int leastPriorityNum(void);
+void scheduler3(struct cpu *c);
 
 void
 pinit(void)
@@ -431,7 +433,7 @@ scheduler(void)
 
   }
 }*/
-/*
+
 void
 scheduler1(struct cpu *c)
 {
@@ -462,7 +464,7 @@ scheduler1(struct cpu *c)
 
   
 }
-*/
+
 //****************Default Algorithm for Scheduler**************************
 
 //Correct Answer for (3.3)****##****
@@ -575,9 +577,8 @@ scheduler(void)
   }
 }*/
 
-/*
 void
-scheduler3(struct cpu *c)
+scheduler2(struct cpu *c)
 {
   struct proc *p;
   struct proc *minp;
@@ -623,7 +624,7 @@ scheduler3(struct cpu *c)
       }
 
     release(&ptable.lock);
-}*/
+}
 
 //Correct Answer for (3.3)****##****
 /*
@@ -765,7 +766,7 @@ scheduler(void)
   }
 }*/
 //************************Policy Scheduler*************************
-/*void
+void
 scheduler(void)
 {
     struct cpu *c = mycpu();
@@ -780,9 +781,11 @@ scheduler(void)
 	  scheduler1(c);
     else if(schedType == 1){
       scheduler1(c);
-      q = 0;
+      q = 3;
     }else if(schedType == 2)
-    scheduler3(c);
+      scheduler2(c);
+    else if(schedType == 3)
+      scheduler3(c);
 
     else{
 
@@ -812,19 +815,22 @@ scheduler(void)
     release(&ptable.lock);
     }
   }
-}*/
+}
 //************************Policy Scheduler*************************
 
 
 //Queue Algorithm
+
 void
-scheduler(void)
+scheduler3(struct cpu *c)
 {
   struct proc *p;
   struct proc *minp;
-  struct cpu *c = mycpu();
+ 
   int min;
-  c->proc = 0;
+  int quantumQ_size, defaultq_size;
+  quantumQ_size = defaultq_size = 0;
+  
   q = 0;
   for(;;){
   
@@ -833,22 +839,21 @@ scheduler(void)
   
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    q = (q+1)%3;
+  q = (q+1)%3;
   if(q == 1)
   {
 
      min = Max;
      minp =myproc();
-
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE && p->qLevel !=1)
-        continue;
-      if(p->state == RUNNABLE && p->changeablePriority < min){
-        min = p->changeablePriority;
-        minp = p;
-        
+     //if(myproc()->qLevel==1) minp->qLevel;
+     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+       if(p->state != RUNNABLE && p->qLevel !=1)
+         continue;
+       if(p->state == RUNNABLE && p->changeablePriority < min){
+         min = p->changeablePriority;
+         minp = p; 
+       }
       }
-    }
 
       if (minp != myproc()){
 
@@ -865,18 +870,19 @@ scheduler(void)
       swtch(&(c->scheduler), minp->context);
       switchkvm();
 
-      if(minp->state != UNUSED || minp->state != ZOMBIE || minp->killed == 0){
+      if((minp->state != UNUSED || minp->state != ZOMBIE || minp->killed == 0) && defaultq_size < 12){
         minp->qLevel = 2;
+        defaultq_size++;
       }
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
-
       }
+    
   }
 
-   if (q == 2)
+   if (q == 2 && defaultq_size < 12)
    {
 
       for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -896,10 +902,12 @@ scheduler(void)
       switchkvm();
 
 
-        if(p->state != UNUSED || p->state != ZOMBIE || p->killed == 0){
+        if((p->state != UNUSED || p->state != ZOMBIE || p->killed == 0) && quantumQ_size < 15){
 
           p->qLevel = 0;
-        }else if(p->state ==ZOMBIE || p->killed!=0){
+          quantumQ_size++;
+        }else if(p->state ==ZOMBIE || p->killed!=0 || p->state == UNUSED){
+          defaultq_size--;
           p->qLevel = p->parent->qLevel;
           wakeup1(initproc);
 
@@ -912,7 +920,7 @@ scheduler(void)
     }
   }
 
-   if (q == 0)
+   if (q == 0 && quantumQ_size < 15)
    {
 
       for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -936,7 +944,8 @@ scheduler(void)
       }
      }
 
-    if(p->state == ZOMBIE || p->killed!=0){
+    if(p->state == ZOMBIE || p->killed!=0 || p->state != UNUSED){
+      quantumQ_size--;
       p->qLevel = p->parent->qLevel;
       wakeup1(initproc);
      }
@@ -946,7 +955,96 @@ scheduler(void)
     release(&ptable.lock);   
   }
 }
+/*
+void
+scheduler3(struct cpu *c)
+{
 
+  struct proc *p,*p1;
+  struct proc *minp;
+  int min,f,f1;
+  q = 0;
+  defaultq_size = 0;
+  quantumQ_size = 0;
+  for(;;){
+    // Enable interrupts on this processor.
+    sti();
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+    f = 0;
+    f1 = 0;
+    q = q%3;
+    q += 1;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE)
+        continue;
+      if(q==1 && p->qLevel==1){
+
+        min = Max;
+        minp = p;
+        //f = 0;
+        for(p1 = ptable.proc; p1 < &ptable.proc[NPROC]; p1++){
+          if(p1->state != RUNNABLE && p1->qLevel !=1)
+            continue;
+          
+          if(p1->state == RUNNABLE && p1->changeablePriority < min){
+            min = p1->changeablePriority;
+            minp = p1; 
+            f = 1;
+          }
+          if (f == 1){
+            minp->changeablePriority += minp->priority;
+            //minp->getFirstCpu = 1;
+            p = minp;
+          }
+        }
+      }else if((q==1 && p->qLevel != 1) || (p->qLevel==1 && q!=1)) f1 = 1;
+      if(defaultq_size !=0 )
+        if((q == 2 && p->qLevel != 2) || (q != 2 && p->qLevel == 2) || (q == 2 && p->qLevel == 2 && defaultq_size != 10))
+          f1 = 1;
+      
+      if(quantumQ_size !=0 && ((q == 3 && p->qLevel != 3) || (q != 3 && p->qLevel == 3)))
+        if((q == 3 && p->qLevel != 3) || (q != 3 && p->qLevel == 3) || (q == 3 && p->qLevel == 3 && quantumQ_size != 5))
+          f1 = 1;
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      if(f1==0){
+        p->getFirstCpu = 1;
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
+
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
+
+        if((p->state != ZOMBIE || p->killed == 0) && defaultq_size < 10 && p->qLevel == 1){
+          p->qLevel = 2;
+          defaultq_size++;
+        }
+        if((p->state == ZOMBIE || p->killed!=0) && p->qLevel == 2){
+          defaultq_size--;
+          //p->qLevel = 1;
+          wakeup1(initproc);
+        }
+        if((p->state != ZOMBIE || p->killed == 0) && quantumQ_size < 5 && p->qLevel == 2){
+          p->qLevel = 3;
+          quantumQ_size++;
+        }
+        if((p->state == ZOMBIE || p->killed!=0) && p->qLevel == 3){
+          quantumQ_size--;
+          //p->qLevel = 1;
+          wakeup1(initproc);
+        }
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+        c->proc = 0;
+      }
+    }
+    release(&ptable.lock);
+  }
+}
+*/
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
 // intena because intena is a property of this
@@ -1173,7 +1271,7 @@ sys_changePolicy(void)
 {
 int n;
 argint(0, &n);
-if (n >= 0 && n < 3){
+if (n >= 0 && n < 4){
 	schedType = n;
 	return 1;
 	}
@@ -1254,6 +1352,11 @@ waitingForChild(void){
       	t->sleepingTime = p->sleepingTime;
       	t->readyTime = p->readyTime;
       	t->runningTime = p->runningTime;
+        t->Queue_level = p->qLevel;
+        /*if(p->qLevel == 2)
+        cprintf("**********Default_size****** : %d\n",defaultq_size);
+        if(p->qLevel == 0)
+        cprintf("**********Default_size****** : %d\n",quantumQ_size);*/
         //cprintf("\ncreationTime :%d***terminationTime :%d***runningTime :%d***ID : %d\nreadyTime : %d***sleepingTime : %d**"
                 //,t->creationTime,t->terminationTime,t->runningTime,pid,t->readyTime,t->sleepingTime);
         release(&ptable.lock);
@@ -1282,12 +1385,12 @@ waitingForChild(void){
 int
 sys_setPriority(void)
 {
-int new_priority;
-argint(0, &new_priority);
-if(new_priority < 1 || new_priority > 5)
-  return -1;
-myproc()->priority = new_priority;
-return 1;
+  int new_priority;
+  argint(0, &new_priority);
+  if(new_priority < 1 || new_priority > 5)
+    return -1;
+  myproc()->priority = new_priority;
+  return 1;
 }
 
 /*    if(countDigit(id)<2 && i==0){

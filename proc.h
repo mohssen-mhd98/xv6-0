@@ -67,6 +67,7 @@ struct processTimeFeatures{
   int sleepingTime; 
   int readyTime; 
   int runningTime;
+  int Queue_level;
   };
 
 // Process memory is laid out contiguously, low addresses first:
