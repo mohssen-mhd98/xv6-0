@@ -131,14 +131,7 @@ int main(void) {
         
         // Update the count of the processes that are in special priority category
         countOfProc[i]+=1;
-        /*printf(1, "pid %d create %d term %d ready %d sleep %d cbt %d \n"
-        , ptv[f].pid, tv->creationTime, tv->terminationTime,
-         tv->readyTime, tv->sleepingTime, tv->runningTime);*/
-        /*printf(1, "creationTime %d\n", tv->creationTime);
-        printf(1, "terminationTime %d\n", tv->terminationTime);
-        printf(1, "readyTime %d\n", tv->readyTime);
-        printf(1, "sleepingTime %d\n", tv->sleepingTime);
-        printf(1, "runningTime %d\n \n", tv->runningTime);*/
+
         }
         
     // Print Process Attributes of each children

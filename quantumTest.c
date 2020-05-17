@@ -51,8 +51,8 @@ struct averageTimeVariables{
     ,atv.averageTurnAroundTime,atv.averageWaitingTime,atv.averageCBT,pid);*/
     }
     
-    printf(1,"averageTurnAroundTime :%d\naverageWaitingTime :%d\naverageCBT :%d\n%d\n"
-    ,atv.averageTurnAroundTime / 10, atv.averageWaitingTime / 10, atv.averageCBT / 10, pid);
+    printf(1,"averageTurnAroundTime :%d\naverageWaitingTime :%d\naverageCBT :%d\n ID of Parent : %d\n"
+    ,atv.averageTurnAroundTime / 10, atv.averageWaitingTime / 10, atv.averageCBT / 10, getpid());
 
     exit();
    

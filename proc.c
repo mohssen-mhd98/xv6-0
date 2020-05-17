@@ -769,9 +769,10 @@ scheduler(void)
 void
 scheduler(void)
 {
-    struct cpu *c = mycpu();
-    c->proc = 0;
-  
+  struct cpu *c = mycpu();
+  c->proc = 0;
+  quantumQ_size = defaultq_size = 0;
+  q  = 0;
   for(;;){
     //q = (q+1)%3;
 
@@ -819,23 +820,16 @@ scheduler(void)
 //************************Policy Scheduler*************************
 
 
-//Queue Algorithm
-
+// Queue Algorithms
+// If you wanna use this methods you have to change condition of q in trap.c to 0 except 3
+/*
 void
 scheduler3(struct cpu *c)
 {
   struct proc *p;
   struct proc *minp;
- 
   int min;
-  int quantumQ_size, defaultq_size;
-  quantumQ_size = defaultq_size = 0;
-  
-  q = 0;
-  for(;;){
-  
-    // Enable interrupts on this processor.
-    sti();
+
   
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
@@ -953,15 +947,17 @@ scheduler3(struct cpu *c)
    }
 
     release(&ptable.lock);   
-  }
-}
+  
+}*/
 /*
 void
-scheduler3(struct cpu *c)
+scheduler(void)
 {
 
   struct proc *p,*p1;
   struct proc *minp;
+  struct cpu *c = mycpu();
+  c->proc = 0;
   int min,f,f1;
   q = 0;
   defaultq_size = 0;
@@ -1045,6 +1041,117 @@ scheduler3(struct cpu *c)
   }
 }
 */
+
+
+void
+scheduler3(struct cpu *c)
+{
+  struct proc *p;
+  struct proc *minp;
+  int min;
+  
+  q = 0;
+  for(;;){
+  
+    // Enable interrupts on this processor.
+    sti();
+  
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+    q = q%3;
+    q += 1;
+
+  if(q == 1)
+  {
+
+     min = Max;
+     minp =myproc();
+     //if(myproc()->qLevel==1) minp->qLevel;
+     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+       if(p->state != RUNNABLE && p->qLevel !=1)
+         continue;
+       if(p->state == RUNNABLE && p->changeablePriority < min){
+         min = p->changeablePriority;
+         minp = p; 
+       }
+      }
+
+      if (minp != myproc() && minp->qLevel==1){
+
+      minp->changeablePriority += minp->priority;
+      minp->getFirstCpu = 1;
+
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      c->proc = minp;
+      switchuvm(minp);
+      minp->state = RUNNING;
+
+      swtch(&(c->scheduler), minp->context);
+      switchkvm();
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+      }
+    
+  }
+
+   if (q == 2)
+   {
+
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+
+      if(p->state != RUNNABLE)
+        continue;
+
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      if(p->qLevel == 2){
+      c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
+
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+      }
+    }
+  }
+
+   if (q == 3)
+   {
+
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE )
+        continue;
+
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      if(p->qLevel == 3){
+      c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
+
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+      }
+     }
+   }
+    release(&ptable.lock);   
+  }
+}
+
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
 // intena because intena is a property of this
@@ -1302,6 +1409,8 @@ acquire(&ptable.lock);
 for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
 	if(p->state == RUNNING){
 		p->runningTime+=1;
+    if(p->runningTime % 100 == 0 && p->qLevel < 3)
+    p->qLevel +=1;
 	}
 	else if(p->state == SLEEPING){
 		p->sleepingTime+=1;
