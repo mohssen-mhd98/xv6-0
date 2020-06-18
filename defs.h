@@ -9,7 +9,7 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
-
+struct ticketlock;
 
 // bio.c
 void            binit(void);
@@ -162,6 +162,10 @@ int             fetchint(uint, int*);
 int             fetchstr(uint, char**);
 void            syscall(void);
 
+//ticketlock.c
+void            ini_ticketLock(struct ticketlock*, char *);
+void            acquire_ticketLock(struct ticketlock*);
+void            release_ticketLock(struct ticketlock*);
 // timer.c
 void            timerinit(void);
 

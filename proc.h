@@ -58,6 +58,7 @@ struct proc {
   int sleepingTime;            // Amount of time the process is sleeping
   int readyTime;               // When the process is ready
   int runningTime;             // CPU Burst Time
+  uint ticket;
  
 };
 

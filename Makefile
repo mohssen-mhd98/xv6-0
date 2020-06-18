@@ -27,6 +27,7 @@ OBJS = \
 	uart.o\
 	vectors.o\
 	vm.o\
+	ticketlock.o\
 
 # Cross-compiling (e.g., on Mac OS X)
 # TOOLPREFIX = i386-jos-elf
@@ -187,6 +188,8 @@ UPROGS=\
 	_priorityTest\
 	_multiLevelqTest\
 	_multiQTest2\
+	_ticketLockTest\
+	_rwTest\
 
 
 fs.img: mkfs README $(UPROGS)
@@ -263,6 +266,8 @@ EXTRA=\
 	priorityTest.c\
 	multiLevelqTest.c\
 	multiQTest2.c\
+	ticketLockTest.c\
+	rwTest.c\
 	printf.c umalloc.c\
 	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\
 	.gdbinit.tmpl gdbutil\

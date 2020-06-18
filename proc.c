@@ -6,7 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
-
+#include "ticketlock.h"
 
 struct {
   struct spinlock lock;
@@ -14,10 +14,14 @@ struct {
 } ptable;
 
 static struct proc *initproc;
-
+struct ticketlock tl;
+struct ticketlock mutex, write;
+int sharedCounter = 0;
 int nextpid = 1;
+uint a =0;
 int q = 0;
 int schedType = 0;
+int readerCount = 0;
 int quantumQ_size, defaultq_size;
 extern void forkret(void);
 extern void trapret(void);
@@ -25,7 +29,7 @@ struct proc* highestPriority(void);
 static void wakeup1(void *chan);
 int leastPriorityNum(void);
 void scheduler3(struct cpu *c);
-
+static void wakeup1TicketLock(int pid);
 void
 pinit(void)
 {
@@ -1271,6 +1275,37 @@ wakeup(void *chan)
   release(&ptable.lock);
 }
 
+
+//PAGEBREAK!
+// Wake up process with the specific  pid.
+// The ptable lock must be held.
+static void
+wakeup1TicketLock(int pid)
+{
+    struct proc *p;
+
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+        if (p->pid == pid) {
+            acquire(&ptable.lock);
+            for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){//iterating through the process's thread table
+                if (p->state == SLEEPING)
+                    p->state = RUNNABLE;
+            }
+            release(&ptable.lock);
+        }
+    }
+
+}
+
+// Wake up  process with specific pid.
+void
+wakeupTicketLock(int pid)
+{
+    acquire(&ptable.lock);
+    wakeup1TicketLock(pid);
+    release(&ptable.lock);
+}
+
 // Kill the process with the given pid.
 // Process won't exit until it returns
 // to user space (see trap in trap.c).
@@ -1333,7 +1368,8 @@ procdump(void)
 int
 getyear()
 {
-  return 2020;
+  //cprintf("****%d***%d\n",a,*a);
+  return fetch_and_add(&a, 1);
 }
 /*char
 getChild(void)
@@ -1500,6 +1536,67 @@ sys_setPriority(void)
     return -1;
   myproc()->priority = new_priority;
   return 1;
+}
+
+int
+sys_ticketlockInit(void)
+{
+    sharedCounter = 0;
+    ini_ticketLock(&tl,"ticketLock");
+    return 0;
+}
+
+int
+sys_ticketlockTest(void)
+{
+    acquire_ticketLock(&tl);
+    microdelay(700000);
+    sharedCounter++;
+    cprintf("***%d***\n", sharedCounter);
+    release_ticketLock(&tl);
+    return tl.ticket;
+}
+
+int
+sys_rwinit(void)
+{
+    sharedCounter = 0;
+    readerCount = 0;
+    ini_ticketLock(&mutex, "mutex readerwriter");
+    ini_ticketLock(&write, "write readerwriter");
+    return 0;
+}
+
+int
+sys_rwtest(void)
+{
+    int pattern;
+    //int result = 0;
+    argint(0, &pattern);
+    // Writer
+    if (pattern == 1) {
+        acquire_ticketLock(&write);
+        //microdelay(70);
+        sharedCounter++;
+        release_ticketLock(&write);
+    }
+        // Reader
+    else if (pattern == 0){
+        acquire_ticketLock(&mutex);
+        readerCount++;
+        if (readerCount == 1){
+          acquire_ticketLock(&write);
+        }
+        release_ticketLock(&mutex);
+        //microdelay(70);
+        acquire_ticketLock(&mutex);
+        readerCount--;
+        if (readerCount == 0){
+            release_ticketLock(&write);
+        }
+        release_ticketLock(&mutex);
+    }
+    return sharedCounter;
 }
 
 /*    if(countDigit(id)<2 && i==0){

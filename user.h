@@ -29,6 +29,11 @@ int getChildren(void);
 int changePolicy(int t);
 int waitingForChild(struct processTimeFeatures* time);
 int setPriority(int);
+int ticketlockInit(void);
+int ticketlockTest(void);
+int rwinit(void);
+int rwtest(int);
+
 
 // ulib.c
 int stat(const char*, struct stat*);
